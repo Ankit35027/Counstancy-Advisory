@@ -17,9 +17,13 @@ const mongoUri = process.env.MONGODB_URI;
 const adminUsername = process.env.ADMIN_USERNAME;
 const adminPassword = process.env.ADMIN_PASSWORD;
 const adminTokenSecret = process.env.ADMIN_TOKEN_SECRET;
+function normalizeOrigin(origin) {
+  return origin ? origin.replace(/\/+$/, "") : "";
+}
+
 const allowedOrigins = (process.env.CLIENT_ORIGIN || "http://localhost:5173")
   .split(",")
-  .map((origin) => origin.trim())
+  .map((origin) => normalizeOrigin(origin.trim()))
   .filter(Boolean);
 
 app.disable("x-powered-by");
@@ -28,11 +32,16 @@ app.set("trust proxy", 1);
 app.use(
   cors({
     origin(origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) {
+      const normalizedOrigin = normalizeOrigin(origin);
+
+      if (!normalizedOrigin || allowedOrigins.includes(normalizedOrigin)) {
         callback(null, true);
         return;
       }
 
+      console.warn(
+        `Blocked CORS origin: ${normalizedOrigin}. Allowed origins: ${allowedOrigins.join(", ")}`,
+      );
       callback(new Error("Origin is not allowed by CORS."));
     },
   }),
