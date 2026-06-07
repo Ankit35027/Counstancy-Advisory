@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { serviceCategories, type ServiceCategory } from "./data/services";
+import { updateSeoMetadata } from "./seo";
 
 const apiBaseUrl = import.meta.env.VITE_API_URL ?? "";
 const adminTokenStorageKey = "mittal-admin-token";
@@ -105,8 +106,30 @@ function getActiveServiceIdFromHash() {
   return null;
 }
 
+function getActiveServiceIdFromPath() {
+  const path = window.location.pathname.replace(/^\/+|\/+$/g, "");
+
+  if (path.startsWith("services/")) {
+    return path.replace("services/", "");
+  }
+
+  return null;
+}
+
+function getActiveServiceIdFromLocation() {
+  return getActiveServiceIdFromPath() ?? getActiveServiceIdFromHash();
+}
+
 function isAdminHash() {
   return window.location.hash.replace(/^#/, "") === "admin";
+}
+
+function isAdminLocation() {
+  return window.location.pathname.replace(/^\/+|\/+$/g, "") === "admin" || isAdminHash();
+}
+
+function getServiceUrl(serviceId: string) {
+  return `/services/${serviceId}`;
 }
 
 function scrollToHashSection(hash: string) {
@@ -337,7 +360,7 @@ function ServiceDetailPage({ service }: { service: ServiceCategory }) {
     <section className="section service-detail-page" id="top">
       <div className="service-detail-hero">
         <div className="service-detail-copy">
-          <a className="back-link" href="#">
+          <a className="back-link" href="/#services">
             Back to all services
           </a>
           <p className="eyebrow">Detailed service page</p>
@@ -751,10 +774,10 @@ function AdminPortal() {
 
 export function App() {
   const [activeServiceId, setActiveServiceId] = useState<string | null>(() =>
-    typeof window !== "undefined" ? getActiveServiceIdFromHash() : null,
+    typeof window !== "undefined" ? getActiveServiceIdFromLocation() : null,
   );
   const [isAdminRoute, setIsAdminRoute] = useState(() =>
-    typeof window !== "undefined" ? isAdminHash() : false,
+    typeof window !== "undefined" ? isAdminLocation() : false,
   );
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -782,10 +805,10 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    const handleHashChange = () => {
+    const handleLocationChange = () => {
       const hash = window.location.hash.replace(/^#/, "");
-      const nextActiveServiceId = getActiveServiceIdFromHash();
-      const nextIsAdminRoute = isAdminHash();
+      const nextActiveServiceId = getActiveServiceIdFromLocation();
+      const nextIsAdminRoute = isAdminLocation();
 
       setActiveServiceId(nextActiveServiceId);
       setIsAdminRoute(nextIsAdminRoute);
@@ -798,8 +821,12 @@ export function App() {
       scrollToHashSection(hash);
     };
 
-    window.addEventListener("hashchange", handleHashChange);
-    return () => window.removeEventListener("hashchange", handleHashChange);
+    window.addEventListener("hashchange", handleLocationChange);
+    window.addEventListener("popstate", handleLocationChange);
+    return () => {
+      window.removeEventListener("hashchange", handleLocationChange);
+      window.removeEventListener("popstate", handleLocationChange);
+    };
   }, []);
 
   useEffect(() => {
@@ -873,10 +900,14 @@ export function App() {
       ? serviceCategories.find((service) => service.id === activeServiceId) ?? null
       : null;
 
+  useEffect(() => {
+    updateSeoMetadata(activeService, isAdminRoute);
+  }, [activeService, isAdminRoute]);
+
   return (
     <main className="page-shell">
       <header className={`site-header ${scrolled ? "scrolled" : ""} ${activeService ? "detail-header" : "landing-header"}`}>
-        <a className="brand" href="#" aria-label="Mittal's Consultancy & Advisory home">
+        <a className="brand" href="/" aria-label="Mittal's Consultancy & Advisory home">
           <span className="brand-mark">M</span>
           <span className="brand-text">
             Mittal's
@@ -884,9 +915,9 @@ export function App() {
           </span>
         </a>
         <nav aria-label="Primary navigation">
-          <a href={activeService ? "#" : "#services"}>Services</a>
-          <a href={activeService ? "#enquiry" : "#process"}>Process</a>
-          <a href="#enquiry">Consultation</a>
+          <a href={activeService ? "/#services" : "#services"}>Services</a>
+          <a href={activeService ? "/#process" : "#process"}>Process</a>
+          <a href={activeService ? "#enquiry" : "#enquiry"}>Consultation</a>
         </nav>
         <a className="header-cta" href="#enquiry">
           Schedule Consultation
@@ -1115,7 +1146,7 @@ export function App() {
 
                   {service.urgency ? <p className="urgency-note">{service.urgency}</p> : null}
 
-                  <a className="service-detail-link" href={`#service/${service.id}`}>
+                  <a className="service-detail-link" href={getServiceUrl(service.id)}>
                     View detailed service page
                   </a>
                 </article>
